@@ -28,14 +28,14 @@ Messages are transported via **Matrix protocol** following the ATMessagingBundle
 │                        Docker Compose Network                           │
 │                                                                         │
 │  ┌─────────────────┐                         ┌─────────────────┐        │
-│  │  HIS App        │                         │  GP App         │        │
-│  │  (Spring Boot)  │                         │  (Spring Boot)  │        │
-│  │  Port 3001      │                         │  Port 3002      │        │
+│  │  HAPI FHIR R5   │                         │  HAPI FHIR R5   │        │
+│  │  Port 8081      │                         │  Port 8082      │        │
 │  └────────┬────────┘                         └────────┬────────┘        │
 │           │                                           │                 │
 │  ┌────────▼────────┐                         ┌────────▼────────┐        │
-│  │  HAPI FHIR R5   │                         │  HAPI FHIR R5   │        │
-│  │  Port 8081      │                         │  Port 8082      │        │
+│  │  HIS App        │                         │  GP App         │        │
+│  │  (Spring Boot)  │                         │  (Spring Boot)  │        │
+│  │  Port 3001      │                         │  Port 3002      │        │
 │  └─────────────────┘                         └─────────────────┘        │
 │           │                                           │                 │
 │           └───────────────┬───────────────────────────┘                 │
