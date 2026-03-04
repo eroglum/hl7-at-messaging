@@ -16,10 +16,11 @@ caution.
 This PoC demonstrates secure FHIR R5 messaging between:
 
 - **Hospital Information System (HIS)** - Sends discharge summaries and clinical documents, receives consult requests,
-  sends answers to consult requests.
-- **General Practitioner (GP) Application** - Receives and views messages, sends consult requests.
-- **Pharmacy Application** - Custom transmitter/receiver (Node.js, Level 3) that receives messages and sends
-  communications.
+  sends answers to consult requests. Supports bi-directional messaging (e.g., MedicationDispense) with the Pharmacy.
+- **General Practitioner (GP) Application** - Receives and views messages, sends consult requests. Supports
+  bi-directional messaging with the Pharmacy.
+- **Pharmacy Application** - Custom transmitter/receiver (Node.js, Level 3) that receives messages from HIS/GP and
+  sends `MedicationDispense` bundles back to them.
 
 Messages are transported via **Matrix protocol** following the ATMessagingBundle profile.
 
@@ -86,8 +87,8 @@ The first startup will take several minutes as it:
 credentials:
 
 - Homeserver: http://localhost:8008 (must start with http, not https)
-- User: gp_user
-- Password: gp_password
+- Users: `gp_user`, `his_user`, `pharmacy_user`
+- Passwords (respectively): `gp_password`, `his_password`, `pharmacy_password`
 
 ## Services
 
