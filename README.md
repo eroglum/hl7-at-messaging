@@ -18,33 +18,34 @@ This PoC demonstrates secure FHIR R5 messaging between:
 - **Hospital Information System (HIS)** - Sends discharge summaries and clinical documents, receives consult requests,
   sends answers to consult requests.
 - **General Practitioner (GP) Application** - Receives and views messages, sends consult requests.
+- **Pharmacy Application** - Custom transmitter/receiver (Node.js, Level 3) that receives messages and sends
+  communications.
 
 Messages are transported via **Matrix protocol** following the ATMessagingBundle profile.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        Docker Compose Network                           │
-│                                                                         │
-│  ┌─────────────────┐                         ┌─────────────────┐        │
-│  │  HAPI FHIR R5   │                         │  HAPI FHIR R5   │        │
-│  │  Port 8081      │                         │  Port 8082      │        │
-│  └────────┬────────┘                         └────────┬────────┘        │
-│           │                                           │                 │
-│  ┌────────▼────────┐                         ┌────────▼────────┐        │
-│  │  HIS App        │                         │  GP App         │        │
-│  │  (Spring Boot)  │                         │  (Spring Boot)  │        │
-│  │  Port 3001      │                         │  Port 3002      │        │
-│  └─────────────────┘                         └─────────────────┘        │
-│           │                                           │                 │
-│           └───────────────┬───────────────────────────┘                 │
-│                           │                                             │
-│                ┌──────────▼──────────┐                                  │
-│                │   Synapse Matrix    │                                  │
-│                │   Port 8008         │                                  │
-│                └─────────────────────┘                                  │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          Docker Compose Network                              │
+│                                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────┐                │
+│  │  HIS App     │    │  GP App      │    │  Pharmacy App    │                │
+│  │  (Java)      │    │  (Java)      │    │  (Node.js)       │                │
+│  │  Port 3001   │    │  Port 3002   │    │  Port 3003       │                │
+│  └──────┬───────┘    └──────┬───────┘    └────────┬─────────┘                │
+│         │                   │                     │                          │
+│  ┌──────┴───────┐    ┌──────┴───────┐             │                          │
+│  │ HAPI FHIR R5 │    │ HAPI FHIR R5 │             │                          │
+│  │ Port 8081    │    │ Port 8082    │             │                          │
+│  └──────────────┘    └──────────────┘             │                          │
+│         │                   │                     │                          │
+│         └───────────────┬───┴─────────────────────┘                          │
+│                  ┌──────▼────────┐                                            │
+│                  │ Synapse Matrix │                                            │
+│                  │ Port 8008     │                                            │
+│                  └───────────────┘                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Quick Start
@@ -72,13 +73,14 @@ The first startup will take several minutes as it:
 
 ### Access the Applications
 
-| Application     | URL                   | Description                      |
-|-----------------|-----------------------|----------------------------------|
-| HIS Web App     | http://localhost:3001 | Hospital Information System      |
-| GP Web App      | http://localhost:3002 | General Practitioner Application |
-| HIS FHIR Server | http://localhost:8081 | Hospital FHIR R5 Server          |
-| GP FHIR Server  | http://localhost:8082 | GP FHIR R5 Server                |
-| Matrix Server   | http://localhost:8008 | Synapse Matrix Server*           |
+| Application      | URL                   | Description                      |
+| ---------------- | --------------------- | -------------------------------- |
+| HIS Web App      | http://localhost:3001 | Hospital Information System      |
+| GP Web App       | http://localhost:3002 | General Practitioner Application |
+| Pharmacy Web App | http://localhost:3003 | Pharmacy Application (Node.js)   |
+| HIS FHIR Server  | http://localhost:8081 | Hospital FHIR R5 Server          |
+| GP FHIR Server   | http://localhost:8082 | GP FHIR R5 Server                |
+| Matrix Server    | http://localhost:8008 | Synapse Matrix Server\*          |
 
 \* The matrix room can be accessed using any matrix client (such as https://app.element.io/) with the following login
 credentials:
@@ -89,17 +91,18 @@ credentials:
 
 ## Services
 
-| Service     | Image                          | Purpose                |
-|-------------|--------------------------------|------------------------|
-| `matrix`    | matrixdotorg/synapse           | Message transport      |
-| `matrix-db` | postgres:15-alpine             | Matrix database        |
-| `his-app`   | Custom (Java 21 + Spring Boot) | Hospital web app       |
-| `his-fhir`  | hapiproject/hapi               | Hospital FHIR server   |
-| `his-db`    | postgres:15-alpine             | Hospital FHIR database |
-| `gp-app`    | Custom (Java 21 + Spring Boot) | GP web app             |
-| `gp-fhir`   | hapiproject/hapi               | GP FHIR server         |
-| `gp-db`     | postgres:15-alpine             | GP FHIR database       |
-| `setup`     | Alpine + curl                  | One-time Matrix setup  |
+| Service        | Image                          | Purpose                    |
+| -------------- | ------------------------------ | -------------------------- |
+| `matrix`       | matrixdotorg/synapse           | Message transport          |
+| `matrix-db`    | postgres:15-alpine             | Matrix database            |
+| `his-app`      | Custom (Java 21 + Spring Boot) | Hospital web app           |
+| `his-fhir`     | hapiproject/hapi               | Hospital FHIR server       |
+| `his-db`       | postgres:15-alpine             | Hospital FHIR database     |
+| `gp-app`       | Custom (Java 21 + Spring Boot) | GP web app                 |
+| `gp-fhir`      | hapiproject/hapi               | GP FHIR server             |
+| `gp-db`        | postgres:15-alpine             | GP FHIR database           |
+| `pharmacy-app` | Custom (Node.js 21 + Express)  | Pharmacy web app (Level 3) |
+| `setup`        | Alpine + curl                  | One-time Matrix setup      |
 
 ## Stopping the PoC
 

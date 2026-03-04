@@ -11,7 +11,8 @@ import java.util.Date;
 import java.util.UUID;
 
 /**
- * Builds ATMessagingBundle with Communication resource for text message responses.
+ * Builds ATMessagingBundle with Communication resource for text message
+ * responses.
  * Used when replying to CommunicationRequest messages with a text response.
  */
 @Service
@@ -30,24 +31,33 @@ public class CommunicationBundleBuilder {
     @Value("${gp.endpoint.address:matrix:@gp_user:matrix.local}")
     private String gpEndpointAddress;
 
+    @Value("${pharmacy.endpoint.name:Apotheke am Hauptplatz}")
+    private String pharmacyEndpointName;
+
+    @Value("${pharmacy.endpoint.address:matrix:@pharmacy_user:matrix.local}")
+    private String pharmacyEndpointAddress;
+
     /**
-     * Creates an ATMessagingBundle with Communication as a response to a CommunicationRequest.
+     * Creates an ATMessagingBundle with Communication as a response to a
+     * CommunicationRequest.
      *
      * @param originalRequest  The original request being responded to
      * @param messageText      The text message content
-     * @param originalBundleId The bundle ID of the original request (for MessageHeader.response)
+     * @param originalBundleId The bundle ID of the original request (for
+     *                         MessageHeader.response)
      * @return The FHIR Bundle with Communication
      */
     public Bundle createCommunicationResponseBundle(ReceivedRequest originalRequest,
-                                                    String messageText,
-                                                    String originalBundleId) {
+            String messageText,
+            String originalBundleId) {
         Bundle bundle = new Bundle();
         bundle.setId(UUID.randomUUID().toString());
         bundle.setType(Bundle.BundleType.MESSAGE);
         bundle.setTimestamp(new Date());
 
         // Add meta profile for ATMessagingBundle
-        bundle.getMeta().addProfile("http://fhir.hl7.at/fhir/ATMessaging/0.1.0/StructureDefinition/at-messaging-bundle");
+        bundle.getMeta()
+                .addProfile("http://fhir.hl7.at/fhir/ATMessaging/0.1.0/StructureDefinition/at-messaging-bundle");
 
         // Create endpoints
         Endpoint sourceEndpoint = createEndpoint(hisEndpointName, hisEndpointAddress);
@@ -81,6 +91,65 @@ public class CommunicationBundleBuilder {
         return bundle;
     }
 
+    /**
+     * Creates an ATMessagingBundle with Communication for sending a standalone
+     * message to Pharmacy.
+     *
+     * @param patientName      Patient name
+     * @param patientBirthDate Patient birth date (yyyy-MM-dd or null)
+     * @param messageText      The text message content
+     * @return The FHIR Bundle with Communication
+     */
+    public Bundle createPharmacyCommunicationBundle(String patientName, String patientBirthDate, String messageText) {
+        Bundle bundle = new Bundle();
+        bundle.setId(UUID.randomUUID().toString());
+        bundle.setType(Bundle.BundleType.MESSAGE);
+        bundle.setTimestamp(new Date());
+
+        bundle.getMeta()
+                .addProfile("http://fhir.hl7.at/fhir/ATMessaging/0.1.0/StructureDefinition/at-messaging-bundle");
+
+        Endpoint sourceEndpoint = createEndpoint(hisEndpointName, hisEndpointAddress);
+        Endpoint destinationEndpoint = createEndpoint(pharmacyEndpointName, pharmacyEndpointAddress);
+
+        Practitioner sender = createSenderPractitioner();
+        Practitioner receiver = createPharmacyPractitioner();
+
+        Patient patient = new Patient();
+        patient.setId(UUID.randomUUID().toString());
+        patient.getMeta().addProfile("http://hl7.at/fhir/HL7ATCoreProfiles/5.0.0/StructureDefinition/at-core-patient");
+        if (patientName != null && !patientName.isBlank()) {
+            HumanName name = patient.addName();
+            String[] parts = patientName.split(" ");
+            name.setFamily(parts[parts.length - 1]);
+            for (int i = 0; i < parts.length - 1; i++) {
+                name.addGiven(parts[i]);
+            }
+        }
+        if (patientBirthDate != null && !patientBirthDate.isBlank()) {
+            patient.setBirthDateElement(new DateType(patientBirthDate));
+        }
+
+        Communication communication = createCommunication(patient, messageText, sender, receiver);
+
+        MessageHeader messageHeader = createMessageHeader(
+                sourceEndpoint, destinationEndpoint, sender, receiver,
+                communication, patient, null);
+        // Override destination name for pharmacy
+        messageHeader.getDestination().getFirst().setName(pharmacyEndpointName);
+
+        addEntry(bundle, messageHeader);
+        addEntry(bundle, sourceEndpoint);
+        addEntry(bundle, destinationEndpoint);
+        addEntry(bundle, sender);
+        addEntry(bundle, receiver);
+        addEntry(bundle, patient);
+        addEntry(bundle, communication);
+
+        log.info("Created ATMessagingBundle with Communication for Pharmacy, {} entries", bundle.getEntry().size());
+        return bundle;
+    }
+
     private Patient createPatientFromRequest(ReceivedRequest request) {
         Patient patient = new Patient();
         patient.setId(UUID.randomUUID().toString());
@@ -110,12 +179,13 @@ public class CommunicationBundleBuilder {
     }
 
     private Communication createCommunication(Patient patient, String messageText,
-                                              Practitioner sender, Practitioner receiver) {
+            Practitioner sender, Practitioner receiver) {
         Communication communication = new Communication();
         communication.setId(UUID.randomUUID().toString());
 
         // Add profile for ATMessagingCommunication
-        communication.getMeta().addProfile("http://fhir.hl7.at/fhir/ATMessaging/0.1.0/StructureDefinition/at-messaging-communication");
+        communication.getMeta()
+                .addProfile("http://fhir.hl7.at/fhir/ATMessaging/0.1.0/StructureDefinition/at-messaging-communication");
 
         communication.setStatus(Enumerations.EventStatus.COMPLETED);
 
@@ -148,14 +218,15 @@ public class CommunicationBundleBuilder {
     }
 
     private MessageHeader createMessageHeader(Endpoint source, Endpoint destination,
-                                              Practitioner sender, Practitioner receiver,
-                                              Communication communication, Patient patient,
-                                              String originalBundleId) {
+            Practitioner sender, Practitioner receiver,
+            Communication communication, Patient patient,
+            String originalBundleId) {
         MessageHeader messageHeader = new MessageHeader();
         messageHeader.setId(UUID.randomUUID().toString());
 
         // Meta profile for ATMessagingMessageHeader
-        messageHeader.getMeta().addProfile("http://fhir.hl7.at/fhir/ATMessaging/0.1.0/StructureDefinition/at-messaging-message-header");
+        messageHeader.getMeta().addProfile(
+                "http://fhir.hl7.at/fhir/ATMessaging/0.1.0/StructureDefinition/at-messaging-message-header");
 
         // Event type - using "status" for response/communication messages
         messageHeader.setEvent(new Coding()
@@ -164,7 +235,8 @@ public class CommunicationBundleBuilder {
                 .setDisplay("Status/Response"));
 
         // Definition - canonical URL to ATMessagingCommunicationMessageDefinition
-        messageHeader.setDefinition("http://fhir.hl7.at/fhir/ATMessaging/0.1.0/MessageDefinition/at-messaging-communication-message");
+        messageHeader.setDefinition(
+                "http://fhir.hl7.at/fhir/ATMessaging/0.1.0/MessageDefinition/at-messaging-communication-message");
 
         // Response - reference to the original request bundle
         if (originalBundleId != null && !originalBundleId.isEmpty()) {
@@ -206,7 +278,8 @@ public class CommunicationBundleBuilder {
     private Endpoint createEndpoint(String name, String address) {
         Endpoint endpoint = new Endpoint();
         endpoint.setId(UUID.randomUUID().toString());
-        endpoint.getMeta().addProfile("http://fhir.hl7.at/fhir/ATMessaging/0.1.0/StructureDefinition/at-messaging-endpoint");
+        endpoint.getMeta()
+                .addProfile("http://fhir.hl7.at/fhir/ATMessaging/0.1.0/StructureDefinition/at-messaging-endpoint");
         endpoint.setStatus(Endpoint.EndpointStatus.ACTIVE);
         endpoint.setName(name);
         endpoint.setAddress(address);
@@ -223,7 +296,8 @@ public class CommunicationBundleBuilder {
     private Practitioner createSenderPractitioner() {
         Practitioner practitioner = new Practitioner();
         practitioner.setId(UUID.randomUUID().toString());
-        practitioner.getMeta().addProfile("http://hl7.at/fhir/HL7ATCoreProfiles/5.0.0/StructureDefinition/at-core-practitioner");
+        practitioner.getMeta()
+                .addProfile("http://hl7.at/fhir/HL7ATCoreProfiles/5.0.0/StructureDefinition/at-core-practitioner");
 
         HumanName name = practitioner.addName();
         name.setFamily("Mayer");
@@ -240,7 +314,8 @@ public class CommunicationBundleBuilder {
     private Practitioner createReceiverPractitioner() {
         Practitioner practitioner = new Practitioner();
         practitioner.setId(UUID.randomUUID().toString());
-        practitioner.getMeta().addProfile("http://hl7.at/fhir/HL7ATCoreProfiles/5.0.0/StructureDefinition/at-core-practitioner");
+        practitioner.getMeta()
+                .addProfile("http://hl7.at/fhir/HL7ATCoreProfiles/5.0.0/StructureDefinition/at-core-practitioner");
 
         HumanName name = practitioner.addName();
         name.setFamily("Huber");
@@ -250,6 +325,20 @@ public class CommunicationBundleBuilder {
         practitioner.addIdentifier()
                 .setSystem("urn:oid:1.2.40.0.10.1.4.3.2")
                 .setValue("GP-12345");
+
+        return practitioner;
+    }
+
+    private Practitioner createPharmacyPractitioner() {
+        Practitioner practitioner = new Practitioner();
+        practitioner.setId(UUID.randomUUID().toString());
+        practitioner.getMeta()
+                .addProfile("http://hl7.at/fhir/HL7ATCoreProfiles/5.0.0/StructureDefinition/at-core-practitioner");
+
+        HumanName name = practitioner.addName();
+        name.setFamily("Fischer");
+        name.addPrefix("Mag.pharm.");
+        name.addGiven("Elena");
 
         return practitioner;
     }

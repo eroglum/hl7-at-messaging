@@ -1,0 +1,17 @@
+{
+  "name": "pharmacy-app",
+  "version": "1.0.0",
+  "description": "AT FHIR Messaging PoC - Pharmacy Application (Level 3)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "ejs": "^3.1.10",
+    "express": "^4.21.0",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.1"
+  }
+}

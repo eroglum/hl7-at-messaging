@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pharmacy - AT FHIR Messaging</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="/style.css" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar navbar-dark bg-success">
+    <div class="container">
+      <span class="navbar-brand">
+        <i class="bi bi-capsule me-2"></i>Pharmacy System
+        <small class="text-white-50 ms-2">(Powered by Node.js)</small>
+      </span>
+      <span class="navbar-text">
+        <% if (connected) { %>
+          <span class="badge bg-light text-success"><i class="bi bi-check-circle me-1"></i>Matrix Connected</span>
+        <% } else { %>
+          <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Disconnected</span>
+        <% } %>
+      </span>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+    <% if (typeof success !== 'undefined' || (typeof query !== 'undefined' && query.success)) { %>
+      <div class="alert alert-success alert-dismissible fade show">
+        <i class="bi bi-check-circle me-1"></i><%= typeof success !== 'undefined' ? success : query.success %>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    <% } %>
+    <% if (typeof error !== 'undefined' || (typeof query !== 'undefined' && query.error)) { %>
+      <div class="alert alert-danger alert-dismissible fade show">
+        <i class="bi bi-exclamation-triangle me-1"></i><%= typeof error !== 'undefined' ? error : query.error %>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    <% } %>
+
+    <div class="row">
+      <!-- Inbox -->
+      <div class="col-md-7">
+        <div class="card shadow-sm">
+          <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-inbox me-2"></i>Inbox</h5>
+            <span class="badge bg-light text-success"><%= messageCount %> message(s)</span>
+          </div>
+          <div class="card-body p-0">
+            <% if (messages.length === 0) { %>
+              <div class="p-4 text-center text-muted">
+                <i class="bi bi-envelope-open" style="font-size:3rem"></i>
+                <p class="mt-2">No messages yet. Messages from HIS and GP will appear here.</p>
+              </div>
+            <% } else { %>
+              <div class="list-group list-group-flush">
+                <% messages.forEach(function(msg) { %>
+                  <a href="/message/<%= msg.id %>" class="list-group-item list-group-item-action">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div>
+                        <h6 class="mb-1">
+                          <% if (msg.eventType === 'document') { %>
+                            <i class="bi bi-file-earmark-pdf text-danger me-1"></i>
+                          <% } else if (msg.eventType === 'communicationrequest') { %>
+                            <i class="bi bi-chat-left-dots text-primary me-1"></i>
+                          <% } else if (msg.eventType === 'communication') { %>
+                            <i class="bi bi-chat-text text-info me-1"></i>
+                          <% } else { %>
+                            <i class="bi bi-envelope text-secondary me-1"></i>
+                          <% } %>
+                          <%= msg.sourceName %>
+                        </h6>
+                        <small class="text-muted">
+                          Type: <strong><%= msg.eventType %></strong>
+                          <% if (msg.patient) { %> | Patient: <strong><%= msg.patient.name %></strong><% } %>
+                          <% if (msg.documents.length > 0) { %> | <i class="bi bi-paperclip"></i> <%= msg.documents.length %> doc(s)<% } %>
+                          <% if (msg.communications.length > 0) { %> | <i class="bi bi-chat"></i> <%= msg.communications.length %> comm(s)<% } %>
+                        </small>
+                      </div>
+                      <small class="text-muted"><%= new Date(msg.timestamp).toLocaleString('de-AT') %></small>
+                    </div>
+                  </a>
+                <% }); %>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Send Form -->
+      <div class="col-md-5">
+        <div class="card shadow-sm">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-capsule me-2"></i>Send Medication Dispense</h5>
+          </div>
+          <div class="card-body">
+            <form action="/send" method="POST">
+              <div class="mb-3">
+                <label class="form-label">Recipient</label>
+                <select name="recipientAddress" class="form-select">
+                  <option value="matrix:@his_user:matrix.local">Hospital (HIS)</option>
+                  <option value="matrix:@gp_user:matrix.local">General Practitioner (GP)</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Patient Name</label>
+                <input type="text" name="patientName" class="form-control" placeholder="e.g. Max Mustermann">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Patient Birth Date</label>
+                <input type="date" name="patientBirthDate" class="form-control">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Medication Name <span class="text-danger">*</span></label>
+                <input type="text" name="medicationName" class="form-control" required
+                  placeholder="e.g. Amoxicillin 500mg">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Dosage Instruction</label>
+                <input type="text" name="dosageInstruction" class="form-control"
+                  placeholder="e.g. 3x daily for 7 days">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Quantity (Packages)</label>
+                <input type="number" name="quantity" class="form-control" value="1" min="1">
+              </div>
+              <button type="submit" class="btn btn-success w-100">
+                <i class="bi bi-send me-1"></i>Send MedicationDispense
+              </button>
+            </form>
+            <hr>
+            <small class="text-muted">
+              <i class="bi bi-info-circle me-1"></i>
+              Notifications are sent as <strong>ATMessagingBundle</strong> with <strong>MedicationDispense</strong> (FHIR R5) via Matrix protocol,
+              conforming to the <a href="https://fhir.hl7.at/r5-TC-FHIR-AG-Messaging-R5-main/artifacts.html" target="_blank">AT Messaging IG</a>.
+            </small>
+          </div>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="card shadow-sm mt-3">
+          <div class="card-header bg-white">
+            <h6 class="mb-0"><i class="bi bi-link-45deg me-1"></i>Quick Links</h6>
+          </div>
+          <div class="list-group list-group-flush">
+            <a href="http://localhost:3001" target="_blank" class="list-group-item list-group-item-action">
+              HIS Application (Port 3001)
+            </a>
+            <a href="http://localhost:3002" target="_blank" class="list-group-item list-group-item-action">
+              GP Application (Port 3002)
+            </a>
+            <a href="http://localhost:8081/fhir/metadata" target="_blank" class="list-group-item list-group-item-action">
+              HIS FHIR Server (Port 8081)
+            </a>
+            <a href="http://localhost:8082/fhir/metadata" target="_blank" class="list-group-item list-group-item-action">
+              GP FHIR Server (Port 8082)
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="mt-5 py-3 text-center text-muted border-top">
+    <small>Pharmacy App — Level 3 Custom Transmitter/Receiver | Node.js + Express | AT FHIR R5 Messaging PoC</small>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Auto-refresh inbox every 10 seconds
+    setInterval(async () => {
+      try {
+        const res = await fetch('/api/message-count');
+        const data = await res.json();
+        const badge = document.querySelector('.card-header .badge');
+        if (badge) badge.textContent = data.count + ' message(s)';
+        if (data.count > <%= messageCount %>) location.reload();
+      } catch {}
+    }, 10000);
+  </script>
+</body>
+</html>

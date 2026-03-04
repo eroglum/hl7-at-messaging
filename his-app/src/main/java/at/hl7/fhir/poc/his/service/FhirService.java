@@ -134,6 +134,7 @@ public class FhirService {
             createSamplePatient("Max", "Mustermann", "1985-03-15", "male", "1234567890");
             createSamplePatient("Maria", "Musterfrau", "1990-07-22", "female", "0987654321");
             createSamplePatient("Johann", "Schmidt", "1978-11-08", "male", "5555555555");
+            createSamplePatient("Muhammed", "Eroglu", "2001-02-18", "male", "1111111111");
 
             log.info("Sample data initialization complete");
         } catch (Exception e) {
@@ -142,7 +143,7 @@ public class FhirService {
     }
 
     private void createSamplePatient(String firstName, String lastName, String birthDate,
-                                      String gender, String socialSecurityNumber) {
+            String gender, String socialSecurityNumber) {
         Patient patient = new Patient();
         patient.setId(UUID.randomUUID().toString());
         patient.getMeta().addProfile("http://hl7.at/fhir/HL7ATCoreProfiles/5.0.0/StructureDefinition/at-core-patient");

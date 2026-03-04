@@ -40,6 +40,12 @@ gp:
     name: "General Practitioner - Dr. Huber"
     address: "matrix:@gp_user:${MATRIX_SERVER_NAME:matrix.local}"
 
+# Pharmacy Endpoint Configuration
+pharmacy:
+  endpoint:
+    name: "Apotheke am Hauptplatz"
+    address: "matrix:@pharmacy_user:${MATRIX_SERVER_NAME:matrix.local}"
+
 management:
   endpoints:
     web:

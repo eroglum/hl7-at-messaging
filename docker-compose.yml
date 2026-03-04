@@ -204,6 +204,32 @@ services:
     networks:
       - messaging-net
 
+  # Pharmacy System (Node.js - Level 3 custom transmitter/receiver)
+  pharmacy-app:
+    build:
+      context: ./pharmacy-app
+      dockerfile: Dockerfile
+    container_name: pharmacy-app
+    ports:
+      - "3003:8080"
+    environment:
+      - MATRIX_SERVER_URL=http://matrix:8008
+      - MATRIX_USERNAME=pharmacy_user
+      - MATRIX_PASSWORD=pharmacy_password
+      - MATRIX_ROOM_ALIAS=messaging
+      - MATRIX_SERVER_NAME=matrix.local
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/actuator/health', r => { r.statusCode === 200 ? process.exit(0) : process.exit(1) }).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - messaging-net
+
   # One-time setup service - registers Matrix users and creates room
   setup:
     build:

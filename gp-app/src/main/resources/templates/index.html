@@ -63,7 +63,7 @@
                 <div class="card-body p-0">
                     <div th:if="${#lists.isEmpty(messages)}" class="text-center text-muted py-5">
                         <h6>No messages yet</h6>
-                        <p class="small">Messages from the Hospital will appear here</p>
+                        <p class="small">Messages from HIS, Pharmacy, and other systems will appear here</p>
                     </div>
                     <div th:unless="${#lists.isEmpty(messages)}" class="table-responsive">
                         <table class="table table-hover mb-0">
@@ -83,9 +83,10 @@
                                         <br>
                                         <small class="text-muted">
                                             <span class="badge"
-                                                  th:classappend="${msg.eventCode == 'document'} ? 'bg-primary' : 'bg-info'"
+                                                  th:classappend="${msg.eventCode == 'document'} ? 'bg-primary' : (${msg.eventCode == 'communication'} ? 'bg-warning text-dark' : 'bg-info')"
                                                   th:text="${msg.eventCode}">document</span>
                                             <span th:if="${msg.response}" class="badge bg-success ms-1">Response</span>
+                                            <span th:if="${msg.medicationDispense}" class="badge bg-success ms-1">Medication</span>
                                         </small>
                                     </a>
                                 </td>
@@ -97,10 +98,16 @@
                                         <small class="text-muted" th:text="${msg.documentType}">Document Type</small>
                                     </th:block>
                                     <!-- Communication/Status message -->
-                                    <th:block th:if="${msg.communication}">
+                                    <th:block th:if="${msg.communication && !msg.medicationDispense}">
                                         <strong>Text Message</strong>
                                         <br>
                                         <small class="text-muted" th:text="${#strings.abbreviate(msg.communicationText, 40)}">Message preview</small>
+                                    </th:block>
+                                    <!-- Medication Dispense message -->
+                                    <th:block th:if="${msg.medicationDispense}">
+                                        <strong>Medication Dispense</strong>
+                                        <br>
+                                        <small class="text-muted" th:text="${msg.medicationName}">Medication name</small>
                                     </th:block>
                                 </td>
                                 <td>
@@ -128,15 +135,15 @@
             <!-- Request Consult Card -->
             <div class="card mb-3 border-success">
                 <div class="card-header bg-success text-white">
-                    <h6 class="mb-0">Request Consult</h6>
+                    <h6 class="mb-0">Send Consult Request</h6>
                 </div>
                 <div class="card-body">
                     <p class="small text-muted mb-3">
-                        Send a CommunicationRequest to the Hospital Information System
-                        to request consultation documents for a patient.
+                        Send a CommunicationRequest to HIS or Pharmacy
+                        to request documents or information for a patient.
                     </p>
                     <a href="/consult-request" class="btn btn-success w-100">
-                        Request Consult from HIS
+                        Send Request
                     </a>
                 </div>
             </div>
@@ -147,8 +154,8 @@
                 </div>
                 <div class="card-body">
                     <p class="small text-muted mb-2">
-                        This is the General Practitioner application receiving FHIR R5 messages
-                        from the Hospital Information System via Matrix protocol.
+                        This is the General Practitioner application exchanging FHIR R5 messages
+                        with HIS and Pharmacy via a shared Matrix messaging channel.
                     </p>
                     <hr>
                     <p class="small mb-1"><strong>How it works:</strong></p>
@@ -168,6 +175,9 @@
                 <div class="list-group list-group-flush">
                     <a href="http://localhost:3001" target="_blank" class="list-group-item list-group-item-action">
                         HIS Application (Port 3001)
+                    </a>
+                    <a href="http://localhost:3003" target="_blank" class="list-group-item list-group-item-action">
+                        Pharmacy Application (Port 3003)
                     </a>
                     <a href="http://localhost:8081/fhir/metadata" target="_blank"
                        class="list-group-item list-group-item-action">

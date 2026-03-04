@@ -84,16 +84,19 @@
                 <!-- Received Requests Card -->
                 <div class="card mb-3 border-info">
                     <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">Received Requests</h6>
+                        <h6 class="mb-0">Received Messages</h6>
                         <span th:if="${requestCount > 0}" class="badge bg-light text-info" th:text="${requestCount}">0</span>
                     </div>
                     <div class="card-body">
                         <p class="small text-muted mb-3">
-                            View CommunicationRequest messages received from the General Practitioner.
+                            View messages received from GP (CommunicationRequest) and Pharmacy (MedicationDispense).
                         </p>
-                        <a href="/requests" class="btn btn-info w-100 text-white">
-                            View Requests
+                        <a href="/requests" class="btn btn-info w-100 text-white mb-2">
+                            View Messages
                             <span th:if="${requestCount > 0}" class="badge bg-light text-info ms-2" th:text="${requestCount}">0</span>
+                        </a>
+                        <a href="/pharmacy/send" class="btn btn-outline-success w-100">
+                            Send Message to Pharmacy
                         </a>
                     </div>
                 </div>
@@ -104,8 +107,8 @@
                     </div>
                     <div class="card-body">
                         <p class="small text-muted mb-2">
-                            This demo shows FHIR R5 message exchange between a Hospital Information System and
-                            a General Practitioner using the AT Messaging Implementation Guide.
+                            This demo shows FHIR R5 message exchange between HIS, GP, and
+                            Pharmacy via a shared Matrix messaging channel (AT Messaging IG).
                         </p>
                         <hr>
                         <p class="small mb-1"><strong>Message Flow:</strong></p>
@@ -125,6 +128,9 @@
                     <div class="list-group list-group-flush">
                         <a href="http://localhost:3002" target="_blank" class="list-group-item list-group-item-action">
                             GP Application (Port 3002)
+                        </a>
+                        <a href="http://localhost:3003" target="_blank" class="list-group-item list-group-item-action">
+                            Pharmacy Application (Port 3003)
                         </a>
                         <a href="http://localhost:8081/fhir/metadata" target="_blank"
                            class="list-group-item list-group-item-action">

@@ -21,7 +21,8 @@ public class RequestBundleParser {
     private final List<ReceivedRequest> receivedRequests = Collections.synchronizedList(new ArrayList<>());
 
     /**
-     * Parses a received FHIR message bundle and extracts CommunicationRequest data.
+     * Parses a received FHIR message bundle and extracts CommunicationRequest or
+     * MedicationDispense data.
      */
     public void parseAndSaveBundle(String bundleJson) {
         try {
@@ -46,6 +47,8 @@ public class RequestBundleParser {
             MessageHeader messageHeader = null;
             Patient patient = null;
             CommunicationRequest communicationRequest = null;
+            MedicationDispense medicationDispense = null;
+            Medication medication = null;
             List<Practitioner> practitioners = new ArrayList<>();
 
             for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
@@ -56,14 +59,18 @@ public class RequestBundleParser {
                     patient = p;
                 } else if (entryResource instanceof CommunicationRequest cr) {
                     communicationRequest = cr;
+                } else if (entryResource instanceof MedicationDispense md) {
+                    medicationDispense = md;
+                } else if (entryResource instanceof Medication med) {
+                    medication = med;
                 } else if (entryResource instanceof Practitioner pr) {
                     practitioners.add(pr);
                 }
             }
 
-            // Only process if this is a CommunicationRequest message
-            if (communicationRequest == null) {
-                log.debug("Bundle does not contain CommunicationRequest, skipping");
+            // Only process if this is a CommunicationRequest or MedicationDispense message
+            if (communicationRequest == null && medicationDispense == null) {
+                log.debug("Bundle does not contain CommunicationRequest or MedicationDispense, skipping");
                 return;
             }
 
@@ -96,50 +103,18 @@ public class RequestBundleParser {
             // Extract Patient info
             if (patient != null) {
                 receivedRequest.setPatientName(getPatientDisplayName(patient));
-                receivedRequest.setPatientBirthDate(patient.hasBirthDate() ?
-                        patient.getBirthDateElement().getValueAsString() : null);
+                receivedRequest.setPatientBirthDate(
+                        patient.hasBirthDate() ? patient.getBirthDateElement().getValueAsString() : null);
                 receivedRequest.setPatientId(patient.getId());
             }
 
-            // Extract CommunicationRequest info
-            receivedRequest.setRequestStatus(communicationRequest.hasStatus() ?
-                    communicationRequest.getStatus().toCode() : null);
-            receivedRequest.setRequestPriority(communicationRequest.hasPriority() ?
-                    communicationRequest.getPriority().toCode() : null);
-            receivedRequest.setRequestAuthoredOn(communicationRequest.getAuthoredOn());
-
-            // Extract request description from payload
-            if (communicationRequest.hasPayload() && !communicationRequest.getPayload().isEmpty()) {
-                CommunicationRequest.CommunicationRequestPayloadComponent payload =
-                        communicationRequest.getPayload().get(0);
-                if (payload.hasContent() && payload.getContent() instanceof Attachment attachment) {
-                    if (attachment.hasData()) {
-                        String content = new String(attachment.getData(), StandardCharsets.UTF_8);
-                        receivedRequest.setRequestDescription(content);
-                    }
-                }
-            }
-
-            // Extract requester info
-            if (communicationRequest.hasRequester()) {
-                String requesterRef = communicationRequest.getRequester().getReference();
-                Practitioner requester = findPractitionerByRef(practitioners, requesterRef);
-                if (requester != null) {
-                    receivedRequest.setRequesterName(getPractitionerDisplayName(requester));
-                } else if (communicationRequest.getRequester().hasDisplay()) {
-                    receivedRequest.setRequesterName(communicationRequest.getRequester().getDisplay());
-                }
-            }
-
-            // Extract recipient info
-            if (communicationRequest.hasRecipient() && !communicationRequest.getRecipient().isEmpty()) {
-                Reference recipientRef = communicationRequest.getRecipient().get(0);
-                Practitioner recipient = findPractitionerByRef(practitioners, recipientRef.getReference());
-                if (recipient != null) {
-                    receivedRequest.setRecipientName(getPractitionerDisplayName(recipient));
-                } else if (recipientRef.hasDisplay()) {
-                    receivedRequest.setRecipientName(recipientRef.getDisplay());
-                }
+            // Process based on message type
+            if (communicationRequest != null) {
+                receivedRequest.setMessageType("request");
+                populateFromCommunicationRequest(receivedRequest, communicationRequest, practitioners);
+            } else {
+                receivedRequest.setMessageType("medication-dispense");
+                populateFromMedicationDispense(receivedRequest, medicationDispense, medication, practitioners);
             }
 
             // Save to local FHIR server
@@ -152,11 +127,106 @@ public class RequestBundleParser {
 
             // Add to received requests list
             receivedRequests.add(receivedRequest);
-            log.info("Processed CommunicationRequest from {} for patient {}",
-                    receivedRequest.getRequesterName(), receivedRequest.getPatientName());
+            log.info("Processed {} from {} for patient {}",
+                    receivedRequest.getMessageType(), receivedRequest.getSourceName(),
+                    receivedRequest.getPatientName());
 
         } catch (Exception e) {
             log.error("Error parsing request bundle", e);
+        }
+    }
+
+    private void populateFromCommunicationRequest(ReceivedRequest receivedRequest,
+            CommunicationRequest communicationRequest,
+            List<Practitioner> practitioners) {
+        receivedRequest
+                .setRequestStatus(communicationRequest.hasStatus() ? communicationRequest.getStatus().toCode() : null);
+        receivedRequest.setRequestPriority(
+                communicationRequest.hasPriority() ? communicationRequest.getPriority().toCode() : null);
+        receivedRequest.setRequestAuthoredOn(communicationRequest.getAuthoredOn());
+
+        // Extract request description from payload
+        if (communicationRequest.hasPayload() && !communicationRequest.getPayload().isEmpty()) {
+            CommunicationRequest.CommunicationRequestPayloadComponent payload = communicationRequest.getPayload()
+                    .get(0);
+            if (payload.hasContent() && payload.getContent() instanceof Attachment attachment) {
+                if (attachment.hasData()) {
+                    String content = new String(attachment.getData(), StandardCharsets.UTF_8);
+                    receivedRequest.setRequestDescription(content);
+                }
+            }
+        }
+
+        // Extract requester info
+        if (communicationRequest.hasRequester()) {
+            String requesterRef = communicationRequest.getRequester().getReference();
+            Practitioner requester = findPractitionerByRef(practitioners, requesterRef);
+            if (requester != null) {
+                receivedRequest.setRequesterName(getPractitionerDisplayName(requester));
+            } else if (communicationRequest.getRequester().hasDisplay()) {
+                receivedRequest.setRequesterName(communicationRequest.getRequester().getDisplay());
+            }
+        }
+
+        // Extract recipient info
+        if (communicationRequest.hasRecipient() && !communicationRequest.getRecipient().isEmpty()) {
+            Reference recipientRef = communicationRequest.getRecipient().get(0);
+            Practitioner recipient = findPractitionerByRef(practitioners, recipientRef.getReference());
+            if (recipient != null) {
+                receivedRequest.setRecipientName(getPractitionerDisplayName(recipient));
+            } else if (recipientRef.hasDisplay()) {
+                receivedRequest.setRecipientName(recipientRef.getDisplay());
+            }
+        }
+    }
+
+    private void populateFromMedicationDispense(ReceivedRequest receivedRequest,
+            MedicationDispense medicationDispense,
+            Medication medication,
+            List<Practitioner> practitioners) {
+        // Extract medication name
+        String medName = null;
+        if (medication != null && medication.hasCode()) {
+            medName = medication.getCode().hasText() ? medication.getCode().getText()
+                    : (medication.getCode().hasCoding() ? medication.getCode().getCodingFirstRep().getDisplay() : null);
+        }
+        if (medName == null && medicationDispense.hasMedication() && medicationDispense.getMedication().hasConcept()) {
+            medName = medicationDispense.getMedication().getConcept().getText();
+        }
+        receivedRequest.setMedicationName(medName != null ? medName : "Unknown Medication");
+
+        // Extract dosage instruction
+        if (medicationDispense.hasDosageInstruction() && !medicationDispense.getDosageInstruction().isEmpty()) {
+            receivedRequest.setDosageInstruction(medicationDispense.getDosageInstruction().get(0).getText());
+        }
+
+        // Extract dispensed quantity
+        if (medicationDispense.hasQuantity()) {
+            Quantity qty = medicationDispense.getQuantity();
+            String qtyStr = qty.hasValue() ? qty.getValue().toPlainString() : "?";
+            String unit = qty.hasUnit() ? " " + qty.getUnit() : "";
+            receivedRequest.setDispensedQuantity(qtyStr + unit);
+        }
+
+        // Build request description from medication info
+        StringBuilder desc = new StringBuilder();
+        desc.append("Medication Dispensed: ").append(receivedRequest.getMedicationName());
+        if (receivedRequest.getDosageInstruction() != null) {
+            desc.append(" — ").append(receivedRequest.getDosageInstruction());
+        }
+        if (receivedRequest.getDispensedQuantity() != null) {
+            desc.append(" (Qty: ").append(receivedRequest.getDispensedQuantity()).append(")");
+        }
+        receivedRequest.setRequestDescription(desc.toString());
+        receivedRequest.setRequestStatus("completed");
+
+        // Extract performer as requester
+        if (medicationDispense.hasPerformer() && !medicationDispense.getPerformer().isEmpty()) {
+            String performerRef = medicationDispense.getPerformer().get(0).getActor().getReference();
+            Practitioner performer = findPractitionerByRef(practitioners, performerRef);
+            if (performer != null) {
+                receivedRequest.setRequesterName(getPractitionerDisplayName(performer));
+            }
         }
     }
 
@@ -235,7 +305,8 @@ public class RequestBundleParser {
     }
 
     private Practitioner findPractitionerByRef(List<Practitioner> practitioners, String reference) {
-        if (reference == null) return null;
+        if (reference == null)
+            return null;
         String id = reference.startsWith("urn:uuid:") ? reference.substring(9) : reference;
         return practitioners.stream()
                 .filter(p -> p.getId().equals(id))

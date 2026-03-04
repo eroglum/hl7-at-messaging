@@ -56,12 +56,14 @@
                     <div class="card-header bg-white">
                         <h5 class="mb-1">
                             <span th:if="${message.document}" th:text="${message.subject} ?: (${message.documentTitle} ?: 'Document')">Subject</span>
-                            <span th:if="${message.communication}">Text Message</span>
+                            <span th:if="${message.communication && !message.medicationDispense}">Text Message</span>
+                            <span th:if="${message.medicationDispense}">Medication Dispense</span>
                         </h5>
                         <small class="text-muted">
                             From: <span th:text="${message.sourceName}">Source</span> |
                             Received: <span th:text="${#dates.format(message.receivedAt, 'dd.MM.yyyy HH:mm:ss')}">Date</span>
                             <span th:if="${message.response}" class="badge bg-success ms-2">Response to Request</span>
+                            <span th:if="${message.medicationDispense}" class="badge bg-warning text-dark ms-2">Pharmacy</span>
                         </small>
                     </div>
                     <div class="card-body">
@@ -79,6 +81,29 @@
                                     | Born: <span th:text="${message.patientBirthDate}"></span>
                                 </span>
                             </p>
+                        </div>
+
+                        <!-- Medication Dispense Content -->
+                        <div th:if="${message.medicationDispense}" class="mb-3">
+                            <h6>Medication Information</h6>
+                            <div class="card bg-light border-0">
+                                <div class="card-body">
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tr>
+                                            <td class="text-muted" style="width:150px">Medication</td>
+                                            <td><strong th:text="${message.medicationName}">Medication Name</strong></td>
+                                        </tr>
+                                        <tr th:if="${message.dosageInstruction}">
+                                            <td class="text-muted">Dosage</td>
+                                            <td th:text="${message.dosageInstruction}">Dosage Instruction</td>
+                                        </tr>
+                                        <tr th:if="${message.dispensedQuantity}">
+                                            <td class="text-muted">Quantity</td>
+                                            <td th:text="${message.dispensedQuantity}">Quantity</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Communication/Text Message Content -->

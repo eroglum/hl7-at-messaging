@@ -26,12 +26,13 @@ public class PatientService {
         patients.add(createPatient("pat-001", "Max", "Mustermann", "1985-03-15", "male", "1234567890"));
         patients.add(createPatient("pat-002", "Maria", "Musterfrau", "1990-07-22", "female", "0987654321"));
         patients.add(createPatient("pat-003", "Johann", "Schmidt", "1978-11-08", "male", "5555555555"));
+        patients.add(createPatient("pat-004", "Muhammed", "Eroglu", "2001-02-18", "male", "1111111111"));
 
         log.info("Initialized {} dummy patients", patients.size());
     }
 
     private Patient createPatient(String id, String firstName, String lastName, String birthDate,
-                                  String gender, String socialSecurityNumber) {
+            String gender, String socialSecurityNumber) {
         Patient patient = new Patient();
         patient.setId(id);
         patient.getMeta().addProfile("http://hl7.at/fhir/HL7ATCoreProfiles/5.0.0/StructureDefinition/at-core-patient");

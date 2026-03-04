@@ -16,7 +16,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.Date;
 
 /**
- * Controller for handling consult request form and sending CommunicationRequest messages to HIS.
+ * Controller for handling consult request form and sending CommunicationRequest
+ * messages to HIS.
  */
 @Controller
 @RequiredArgsConstructor
@@ -47,8 +48,9 @@ public class ConsultRequestController {
 
     @PostMapping("/consult-request/send")
     public String sendRequest(@RequestParam String patientId,
-                              @RequestParam String description,
-                              RedirectAttributes redirectAttributes) {
+            @RequestParam String description,
+            @RequestParam(defaultValue = "his") String recipient,
+            RedirectAttributes redirectAttributes) {
 
         // Validate input
         if (patientId == null || patientId.isBlank()) {
@@ -70,7 +72,7 @@ public class ConsultRequestController {
 
         try {
             // Build the CommunicationRequest bundle
-            Bundle bundle = bundleBuilder.createCommunicationRequestBundle(patient, description);
+            Bundle bundle = bundleBuilder.createCommunicationRequestBundle(patient, description, recipient);
 
             // Capture the original bundle ID before saving
             String originalBundleId = bundle.getId();
@@ -84,9 +86,10 @@ public class ConsultRequestController {
 
             if (sent) {
                 String patientName = patientService.getPatientDisplayName(patient);
-                log.info("Successfully sent consult request for patient: {}", patientName);
+                String recipientLabel = "pharmacy".equals(recipient) ? "Pharmacy" : "HIS";
+                log.info("Successfully sent consult request to {} for patient: {}", recipientLabel, patientName);
                 redirectAttributes.addFlashAttribute("success",
-                        "Consult request sent successfully for " + patientName);
+                        "Consult request sent successfully to " + recipientLabel + " for " + patientName);
 
                 // Track the sent request
                 SentRequest sentRequest = new SentRequest();
@@ -96,7 +99,8 @@ public class ConsultRequestController {
                 sentRequest.setFhirBundleId(savedBundle != null ? savedBundle.getIdElement().getIdPart() : null);
                 sentRequest.setBundleJson(bundleJson);
                 sentRequest.setPatientName(patientName);
-                sentRequest.setPatientBirthDate(patient.hasBirthDate() ? patient.getBirthDateElement().getValueAsString() : null);
+                sentRequest.setPatientBirthDate(
+                        patient.hasBirthDate() ? patient.getBirthDateElement().getValueAsString() : null);
                 sentRequest.setPatientId(patientId);
                 sentRequest.setDescription(description);
                 sentRequest.setStatus("sent");

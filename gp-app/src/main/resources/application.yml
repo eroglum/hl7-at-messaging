@@ -36,6 +36,12 @@ his:
     name: "Hospital Information System"
     address: "matrix:@his_user:${MATRIX_SERVER_NAME:matrix.local}"
 
+# Pharmacy Endpoint Configuration
+pharmacy:
+  endpoint:
+    name: "Apotheke am Hauptplatz"
+    address: "matrix:@pharmacy_user:${MATRIX_SERVER_NAME:matrix.local}"
+
 management:
   endpoints:
     web:

@@ -51,9 +51,12 @@ public class BundleParser {
             }
 
             String eventCode = getEventCode(messageHeader);
-            // Accept both "document" and "status" (communication) messages
-            if (!"document".equals(eventCode) && !"status".equals(eventCode)) {
-                log.debug("Skipping message with event type '{}', GP app only processes 'document' and 'status' messages", eventCode);
+            // Accept "document", "status" (communication), and "communication" (pharmacy)
+            // messages
+            if (!"document".equals(eventCode) && !"status".equals(eventCode) && !"communication".equals(eventCode)) {
+                log.debug(
+                        "Skipping message with event type '{}', GP app only processes 'document', 'status', and 'communication' messages",
+                        eventCode);
                 return;
             }
 
@@ -61,6 +64,8 @@ public class BundleParser {
             Patient patient = null;
             DocumentReference documentReference = null;
             Communication communication = null;
+            MedicationDispense medicationDispense = null;
+            Medication medication = null;
             List<Endpoint> endpoints = new ArrayList<>();
             List<Practitioner> practitioners = new ArrayList<>();
             List<PractitionerRole> practitionerRoles = new ArrayList<>();
@@ -74,6 +79,10 @@ public class BundleParser {
                     documentReference = dr;
                 } else if (entryResource instanceof Communication comm) {
                     communication = comm;
+                } else if (entryResource instanceof MedicationDispense md) {
+                    medicationDispense = md;
+                } else if (entryResource instanceof Medication med) {
+                    medication = med;
                 } else if (entryResource instanceof Endpoint ep) {
                     endpoints.add(ep);
                 } else if (entryResource instanceof Practitioner pr) {
@@ -144,15 +153,16 @@ public class BundleParser {
                     CodeableConcept type = organization.getType().getFirst();
                     if (type.hasCoding() && !type.getCoding().isEmpty()) {
                         Coding coding = type.getCodingFirstRep();
-                        receivedMessage.setSenderOrganizationType(coding.hasDisplay() ? coding.getDisplay() : coding.getCode());
+                        receivedMessage.setSenderOrganizationType(
+                                coding.hasDisplay() ? coding.getDisplay() : coding.getCode());
                     }
                 }
             }
 
             if (patient != null) {
                 receivedMessage.setPatientName(getPatientDisplayName(patient));
-                receivedMessage.setPatientBirthDate(patient.hasBirthDate() ?
-                        patient.getBirthDateElement().getValueAsString() : null);
+                receivedMessage.setPatientBirthDate(
+                        patient.hasBirthDate() ? patient.getBirthDateElement().getValueAsString() : null);
             }
 
             if (documentReference != null) {
@@ -191,6 +201,11 @@ public class BundleParser {
                         receivedMessage.setSenderName(communication.getSender().getDisplay());
                     }
                 }
+            }
+
+            // Extract MedicationDispense content (for pharmacy messages)
+            if (medicationDispense != null) {
+                extractMedicationDispenseContent(medicationDispense, medication, receivedMessage);
             }
 
             // Save to local FHIR server
@@ -306,7 +321,8 @@ public class BundleParser {
     }
 
     private PractitionerRole findPractitionerRoleByRef(List<PractitionerRole> roles, String reference) {
-        if (reference == null) return null;
+        if (reference == null)
+            return null;
         String id = reference.startsWith("urn:uuid:") ? reference.substring(9) : reference;
         return roles.stream()
                 .filter(r -> r.getId().equals(id))
@@ -315,7 +331,8 @@ public class BundleParser {
     }
 
     private Practitioner findPractitionerByRef(List<Practitioner> practitioners, String reference) {
-        if (reference == null) return null;
+        if (reference == null)
+            return null;
         String id = reference.startsWith("urn:uuid:") ? reference.substring(9) : reference;
         return practitioners.stream()
                 .filter(p -> p.getId().equals(id))
@@ -324,7 +341,8 @@ public class BundleParser {
     }
 
     /**
-     * Extracts document content from DocumentReference and populates the ReceivedMessage.
+     * Extracts document content from DocumentReference and populates the
+     * ReceivedMessage.
      * Handles both PDF and text content types.
      */
     private void extractDocumentContent(DocumentReference documentReference, ReceivedMessage message) {
@@ -332,8 +350,7 @@ public class BundleParser {
             return;
         }
 
-        DocumentReference.DocumentReferenceContentComponent content =
-                documentReference.getContent().getFirst();
+        DocumentReference.DocumentReferenceContentComponent content = documentReference.getContent().getFirst();
         if (!content.hasAttachment()) {
             return;
         }
@@ -363,7 +380,8 @@ public class BundleParser {
     }
 
     /**
-     * Extracts communication content from Communication and populates the ReceivedMessage.
+     * Extracts communication content from Communication and populates the
+     * ReceivedMessage.
      */
     private void extractCommunicationContent(Communication communication, ReceivedMessage message) {
         if (!communication.hasPayload() || communication.getPayload().isEmpty()) {
@@ -376,6 +394,43 @@ public class BundleParser {
                 byte[] data = attachment.getData();
                 message.setCommunicationText(new String(data));
             }
+        }
+    }
+
+    /**
+     * Extracts MedicationDispense content from bundle and populates the
+     * ReceivedMessage.
+     */
+    private void extractMedicationDispenseContent(MedicationDispense medicationDispense,
+            Medication medication,
+            ReceivedMessage message) {
+        // Extract medication name
+        String medName = null;
+        if (medication != null && medication.hasCode()) {
+            medName = medication.getCode().hasText() ? medication.getCode().getText()
+                    : (medication.getCode().hasCoding() ? medication.getCode().getCodingFirstRep().getDisplay() : null);
+        }
+        if (medName == null && medicationDispense.hasMedication() && medicationDispense.getMedication().hasConcept()) {
+            medName = medicationDispense.getMedication().getConcept().getText();
+        }
+        message.setMedicationName(medName != null ? medName : "Unknown Medication");
+
+        // Extract dosage instruction
+        if (medicationDispense.hasDosageInstruction() && !medicationDispense.getDosageInstruction().isEmpty()) {
+            message.setDosageInstruction(medicationDispense.getDosageInstruction().get(0).getText());
+        }
+
+        // Extract dispensed quantity
+        if (medicationDispense.hasQuantity()) {
+            Quantity qty = medicationDispense.getQuantity();
+            String qtyStr = qty.hasValue() ? qty.getValue().toPlainString() : "?";
+            String unit = qty.hasUnit() ? " " + qty.getUnit() : "";
+            message.setDispensedQuantity(qtyStr + unit);
+        }
+
+        // Set subject from medication info
+        if (message.getSubject() == null || message.getSubject().isEmpty()) {
+            message.setSubject("Medication Dispensed: " + message.getMedicationName());
         }
     }
 }

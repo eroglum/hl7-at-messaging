@@ -53,8 +53,8 @@
         <div class="col-lg-8">
             <div class="card">
                 <div class="card-header bg-white">
-                    <h5 class="mb-0">Request Consult from HIS</h5>
-                    <small class="text-muted">Send a CommunicationRequest to the Hospital Information System</small>
+                    <h5 class="mb-0">Send Consult Request</h5>
+                    <small class="text-muted">Send a CommunicationRequest to HIS or Pharmacy</small>
                 </div>
                 <div class="card-body">
                     <form th:action="@{/consult-request/send}" method="post">
@@ -86,22 +86,23 @@
                                    th:value="${selectedPatientId}"/>
                         </div>
 
+                        <!-- Recipient Selection -->
+                        <div class="mb-4">
+                            <label for="recipient" class="form-label"><strong>2. Recipient</strong></label>
+                            <select class="form-select" id="recipient" name="recipient">
+                                <option value="his">Hospital Information System (HIS)</option>
+                                <option value="pharmacy">Pharmacy (Apotheke am Hauptplatz)</option>
+                            </select>
+                        </div>
+
                         <!-- Request Description -->
                         <div class="mb-4">
-                            <label for="description" class="form-label"><strong>2. Request Description</strong></label>
+                            <label for="description" class="form-label"><strong>3. Request Description</strong></label>
                             <textarea class="form-control" id="description" name="description" rows="4"
-                                      placeholder="Describe what documents or information you are requesting from the HIS..."
+                                      placeholder="Describe what documents or information you are requesting..."
                                       required></textarea>
                             <div class="form-text">
                                 Explain what consultation documents, test results, or patient information you need.
-                            </div>
-                        </div>
-
-                        <!-- Recipient Info -->
-                        <div class="mb-4">
-                            <label class="form-label"><strong>3. Recipient</strong></label>
-                            <div class="alert alert-secondary py-2">
-                                <strong>Dr. Selina Mayer</strong> - Hospital Information System
                             </div>
                         </div>
 

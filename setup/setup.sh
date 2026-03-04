@@ -88,8 +88,8 @@ ROOM_RESPONSE=$(curl -sf -X POST "${MATRIX_SERVER}/_matrix/client/v3/createRoom"
     -H "Authorization: Bearer ${HIS_TOKEN}" \
     -d '{
         "room_alias_name": "messaging",
-        "name": "AT Messaging Channel",
-        "topic": "FHIR Messaging between HIS and GP",
+        "name": "AT FHIR Messaging Channel",
+        "topic": "Shared FHIR R5 messaging channel for HIS, GP, and Pharmacy",
         "preset": "public_chat",
         "visibility": "public"
     }' 2>/dev/null || true)
@@ -118,13 +118,60 @@ if [ -n "$ROOM_ID" ] && [ "$ROOM_ID" != "null" ]; then
     echo "GP user joined room"
 fi
 
+# Register Pharmacy user
+echo "Registering Pharmacy user..."
+PHARMACY_RESPONSE=$(curl -sf -X POST "${MATRIX_SERVER}/_matrix/client/v3/register" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "username": "pharmacy_user",
+        "password": "pharmacy_password",
+        "auth": {
+            "type": "m.login.dummy"
+        }
+    }' 2>/dev/null || true)
+
+if echo "$PHARMACY_RESPONSE" | grep -q "access_token"; then
+    PHARMACY_TOKEN=$(echo "$PHARMACY_RESPONSE" | jq -r '.access_token')
+    echo "Pharmacy user registered successfully"
+elif echo "$PHARMACY_RESPONSE" | grep -q "M_USER_IN_USE"; then
+    echo "Pharmacy user already exists, logging in..."
+    PHARMACY_TOKEN=$(curl -sf -X POST "${MATRIX_SERVER}/_matrix/client/v3/login" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "type": "m.login.password",
+            "user": "pharmacy_user",
+            "password": "pharmacy_password"
+        }' | jq -r '.access_token')
+else
+    echo "Warning: Could not register Pharmacy user, trying login..."
+    PHARMACY_TOKEN=$(curl -sf -X POST "${MATRIX_SERVER}/_matrix/client/v3/login" \
+        -H "Content-Type: application/json" \
+        -d '{
+            "type": "m.login.password",
+            "user": "pharmacy_user",
+            "password": "pharmacy_password"
+        }' | jq -r '.access_token')
+fi
+
+# Join Pharmacy user to the room
+if [ -n "$ROOM_ID" ] && [ "$ROOM_ID" != "null" ]; then
+    echo "Joining Pharmacy user to room..."
+    curl -sf -X POST "${MATRIX_SERVER}/_matrix/client/v3/join/${ROOM_ID}" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${PHARMACY_TOKEN}" \
+        -d '{}' > /dev/null 2>&1 || true
+    echo "Pharmacy user joined room"
+fi
+
 echo ""
 echo "========================================="
 echo "Matrix setup complete!"
 echo "HIS User: @his_user:${MATRIX_SERVER_NAME}"
 echo "GP User: @gp_user:${MATRIX_SERVER_NAME}"
+echo "Pharmacy User: @pharmacy_user:${MATRIX_SERVER_NAME}"
 echo "Room: #messaging:${MATRIX_SERVER_NAME}"
 if [ -n "$ROOM_ID" ]; then
     echo "Room ID: ${ROOM_ID}"
 fi
 echo "========================================="
+
